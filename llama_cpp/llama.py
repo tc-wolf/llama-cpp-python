@@ -983,6 +983,8 @@ class Llama:
         if self.cache:
             try:
                 cache_item = self.cache[prompt_tokens]
+                if self.verbose:
+                    print("Item found in cache", file=sys.stderr)
                 cache_prefix_len = Llama.longest_token_prefix(
                     cache_item.input_ids.tolist(), prompt_tokens
                 )
@@ -992,7 +994,7 @@ class Llama:
                 if cache_prefix_len > eval_prefix_len:
                     self.load_state(cache_item)
                     if self.verbose:
-                        print("Llama._create_completion: cache hit", file=sys.stderr)
+                        print(f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}", file=sys.stderr)
             except KeyError:
                 if self.verbose:
                     print("Llama._create_completion: cache miss", file=sys.stderr)

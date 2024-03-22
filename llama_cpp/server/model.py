@@ -101,7 +101,8 @@ class LlamaProxy:
         draft_model = None
         if settings.draft_model is not None:
             draft_model = llama_speculative.LlamaPromptLookupDecoding(
-                num_pred_tokens=settings.draft_model_num_pred_tokens
+                num_pred_tokens=settings.draft_model_num_pred_tokens,
+                max_ngram_size=settings.draft_model_max_ngram_size,
             )
 
         kv_overrides: Optional[Dict[str, Union[bool, int, float]]] = None
@@ -184,7 +185,22 @@ class LlamaProxy:
             if settings.cache_type == "disk":
                 if settings.verbose:
                     print(f"Using disk cache with size {settings.cache_size}")
-                cache = llama_cpp.LlamaDiskCache(capacity_bytes=settings.cache_size)
+                if settings.cache_dir:
+                    cache = llama_cpp.LlamaDiskCache(
+                        capacity_bytes=settings.cache_size, cache_dir=settings.cache_dir
+                    )
+                else:
+                    cache = llama_cpp.LlamaDiskCache(capacity_bytes=settings.cache_size)
+            elif settings.cache_type == "static_disk":
+                if settings.verbose:
+                    print(f"Using static disk cache with size {settings.cache_size}")
+
+                if not settings.cache_dir:
+                    raise ValueError("cache_dir must be set for static_disk cache!")
+
+                cache = llama_cpp.LlamaStaticDiskCache(
+                    cache_dir=settings.cache_dir, capacity_bytes=settings.cache_size
+                )
             else:
                 if settings.verbose:
                     print(f"Using ram cache with size {settings.cache_size}")

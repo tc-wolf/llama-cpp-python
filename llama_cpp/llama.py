@@ -1,58 +1,48 @@
 from __future__ import annotations
 
-import os
-import sys
-import uuid
-import time
-import json
 import ctypes
 import fnmatch
+import json
 import multiprocessing
-
-from typing import (
-    List,
-    Optional,
-    Union,
-    Generator,
-    Sequence,
-    Iterator,
-    Deque,
-    Callable,
-    Dict,
-)
+import os
+import sys
+import time
+import uuid
 from collections import deque
 from pathlib import Path
-
-
-from llama_cpp.llama_types import List
-
-from .llama_types import *
-from .llama_grammar import LlamaGrammar
-from .llama_cache import (
-    BaseLlamaCache,
-    LlamaCache,  # type: ignore
-    LlamaDiskCache,  # type: ignore
-    LlamaRAMCache,  # type: ignore
+from typing import (
+    Any,
+    Callable,
+    Deque,
+    Dict,
+    Generator,
+    Iterator,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
 )
-from .llama_tokenizer import BaseLlamaTokenizer, LlamaTokenizer
-import llama_cpp.llama_cpp as llama_cpp
-import llama_cpp.llama_chat_format as llama_chat_format
-
-from llama_cpp.llama_speculative import LlamaDraftModel
 
 import numpy as np
 import numpy.typing as npt
 
-from ._internals import (
-    _LlamaModel,  # type: ignore
-    _LlamaContext,  # type: ignore
-    _LlamaBatch,  # type: ignore
-    _LlamaTokenDataArray,  # type: ignore
-    _LlamaSamplingParams,  # type: ignore
-    _LlamaSamplingContext,  # type: ignore
-)
+import llama_cpp.llama_chat_format as llama_chat_format
+import llama_cpp.llama_cpp as llama_cpp
+from llama_cpp.llama_speculative import LlamaDraftModel
+
+from ._internals import _LlamaBatch  # type: ignore
+from ._internals import _LlamaContext  # type: ignore
+from ._internals import _LlamaModel  # type: ignore
+from ._internals import _LlamaSamplingContext  # type: ignore
+from ._internals import _LlamaSamplingParams  # type: ignore
+from ._internals import _LlamaTokenDataArray  # type: ignore
 from ._logger import set_verbose
 from ._utils import suppress_stdout_stderr
+from .llama_cache import BaseLlamaCache
+from .llama_grammar import LlamaGrammar
+from .llama_tokenizer import BaseLlamaTokenizer, LlamaTokenizer
+from .llama_types import *
 
 
 class Llama:
@@ -1325,14 +1315,14 @@ class Llama:
                     }
                 ],
             }
-            if self.cache:
+            if self.cache and not self.cache.is_ro:
                 if self.verbose:
                     print("Llama._create_completion: cache save", file=sys.stderr)
                 self.cache[prompt_tokens + completion_tokens] = self.save_state()
                 print("Llama._create_completion: cache saved", file=sys.stderr)
             return
 
-        if self.cache:
+        if self.cache and not self.cache.is_ro:
             if self.verbose:
                 print("Llama._create_completion: cache save", file=sys.stderr)
             self.cache[prompt_tokens + completion_tokens] = self.save_state()
@@ -1959,7 +1949,7 @@ class Llama:
         Returns:
             A Llama model."""
         try:
-            from huggingface_hub import hf_hub_download, HfFileSystem
+            from huggingface_hub import HfFileSystem, hf_hub_download
             from huggingface_hub.utils import validate_repo_id
         except ImportError:
             raise ImportError(

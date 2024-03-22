@@ -128,13 +128,16 @@ class ModelSettings(BaseSettings):
         default=False,
         description="Use a cache to reduce processing times for evaluated prompts.",
     )
-    cache_type: Literal["ram", "disk"] = Field(
+    cache_type: Literal["ram", "disk", "static_disk"] = Field(
         default="ram",
         description="The type of cache to use. Only used if cache is True.",
     )
     cache_size: int = Field(
         default=2 << 30,
         description="The size of the cache in bytes. Only used if cache is True.",
+    )
+    cache_dir: Optional[str] = Field(
+        default=None, description="Directory to use for disk cache."
     )
     # Tokenizer Options
     hf_tokenizer_config_path: Optional[str] = Field(

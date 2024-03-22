@@ -1074,7 +1074,7 @@ def format_nekomata(
 
 ### 応答:
 """.format(
-            instruction=system_msg["content"], input=user_msg["content"]
+            instruction=system_msg["content"].strip(), input=user_msg["content"].strip()
         )
 
     else:
@@ -1086,7 +1086,7 @@ def format_nekomata(
 
 ### 応答:
 """.format(
-            input=user_msg["content"]
+            input=user_msg["content"].strip()
         )
 
     prompt = prompt.lstrip("\n")

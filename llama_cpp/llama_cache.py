@@ -171,10 +171,12 @@ class LlamaStaticDiskCache(BaseLlamaCache):
     Cache that only reads from the cache, doesn't store / overwrite items, and
     doesn't pop from cache.
 
-    Still using diskcache.Cache for underlying cache, but tries to avoid using
-    pickle.dumps when writing LlamaState (which adds overhead).
+    Still using diskcache.Cache for underlying cache, but uses a trie to store
+    keys so that can more efficiently look for prefixes.
 
-    Instead of storing serialized LlamaState directly, just store bytes.
+    Want to store C++ state as bytes (from `llama_copy_state_data`), but for now
+    still storing LlamaState, because need scores/input_ids/n_tokens so that Python
+    code can continue inference.
     """
 
     def __init__(

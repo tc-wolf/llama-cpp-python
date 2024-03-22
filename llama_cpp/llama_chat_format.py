@@ -339,7 +339,9 @@ def chat_formatter_to_chat_completion_handler(
             stop = stop + rstop
 
         if response_format is not None and response_format["type"] == "json_object":
-            grammar = _grammar_for_response_format(response_format, verbose=llama.verbose)
+            grammar = _grammar_for_response_format(
+                response_format, verbose=llama.verbose
+            )
 
         completion_or_chunks = llama.create_completion(
             prompt=prompt,
@@ -463,8 +465,10 @@ def guess_chat_format_from_gguf_metadata(metadata: Dict[str, str]) -> Optional[s
     if metadata["tokenizer.chat_template"] == CHATML_CHAT_TEMPLATE:
         return "chatml"
 
-    if (metadata["tokenizer.chat_template"] == MISTRAL_INSTRUCT_CHAT_TEMPLATE or
-            metadata["tokenizer.chat_template"] == MIXTRAL_INSTRUCT_CHAT_TEMPLATE):
+    if (
+        metadata["tokenizer.chat_template"] == MISTRAL_INSTRUCT_CHAT_TEMPLATE
+        or metadata["tokenizer.chat_template"] == MIXTRAL_INSTRUCT_CHAT_TEMPLATE
+    ):
         return "mistral-instruct"
 
     return None
@@ -597,13 +601,15 @@ def _format_chatglm3(
             ret += role
     return ret
 
-def _grammar_for_json(verbose:bool=False):
-    return llama_grammar.LlamaGrammar.from_string(llama_grammar.JSON_GBNF, verbose=verbose)
+
+def _grammar_for_json(verbose: bool = False):
+    return llama_grammar.LlamaGrammar.from_string(
+        llama_grammar.JSON_GBNF, verbose=verbose
+    )
+
 
 def _grammar_for_json_schema(
-        schema: str,
-        verbose: bool = False,
-        fallback_to_json: bool = True
+    schema: str, verbose: bool = False, fallback_to_json: bool = True
 ):
     try:
         return llama_grammar.LlamaGrammar.from_json_schema(schema, verbose=verbose)
@@ -613,9 +619,10 @@ def _grammar_for_json_schema(
         else:
             raise e
 
+
 def _grammar_for_response_format(
-        response_format: llama_types.ChatCompletionRequestResponseFormat,
-        verbose: bool = False
+    response_format: llama_types.ChatCompletionRequestResponseFormat,
+    verbose: bool = False,
 ):
     if response_format["type"] != "json_object":
         return None
@@ -626,6 +633,7 @@ def _grammar_for_response_format(
         )
     else:
         return _grammar_for_json(verbose=verbose)
+
 
 ### Chat Formats ###
 
@@ -1035,6 +1043,55 @@ def format_gemma(
     _messages.append((_roles["assistant"], None))
     _prompt = _format_no_colon_single(system_message="", messages=_messages, sep=_sep)
     return ChatFormatterResponse(prompt=_prompt, stop=_sep)
+
+
+@register_chat_format("nekomata")
+def format_nekomata(
+    messages: List[llama_types.ChatCompletionRequestMessage],
+    **kwargs: Any,
+) -> ChatFormatterResponse:
+    # This is an Alpaca format model so don't support multi-turn
+    num_user_messages = sum(1 for m in messages if m["role"] == "user")
+    assert (
+        num_user_messages == 1
+    ), f"Only one user message allowed, got {num_user_messages}"
+
+    user_msg = [m for m in messages if m["role"] == "user"][0]
+    try:
+        system_msg = [m for m in messages if m["role"] == "system"][0]
+    except IndexError:
+        system_msg = None
+
+    if system_msg is not None:
+        prompt = """
+以下は、タスクを説明する指示と、文脈のある入力の組み合わせです。要求を適切に満たす応答を書きなさい。
+
+### 指示:
+{instruction}
+
+### 入力:
+{input}
+
+### 応答:
+""".format(
+            instruction=system_msg["content"], input=user_msg["content"]
+        )
+
+    else:
+        prompt = """
+以下は、タスクを説明する指示と、文脈のある入力の組み合わせです。要求を適切に満たす応答を書きなさい。
+
+### 入力:
+{input}
+
+### 応答:
+""".format(
+            input=user_msg["content"]
+        )
+
+    prompt = prompt.lstrip("\n")
+
+    return ChatFormatterResponse(prompt)
 
 
 # Tricky chat formats that require custom chat handlers
@@ -2155,7 +2212,11 @@ def chatml_function_calling(
                 },
             }
 
-    stop = [stop, "<|im_end|>"] if isinstance(stop, str) else stop + ["<|im_end|>"] if stop else ["<|im_end|>"]
+    stop = (
+        [stop, "<|im_end|>"]
+        if isinstance(stop, str)
+        else stop + ["<|im_end|>"] if stop else ["<|im_end|>"]
+    )
 
     # Case 1: No tool choice by user
     if (
@@ -2576,12 +2637,16 @@ def chatml_function_calling(
             )
 
         # Merge completions
-        function_call = { 
-            "function_call": {
-                "name": tool_name,
-                "arguments": completions[0]["choices"][0]["text"],
+        function_call = (
+            {
+                "function_call": {
+                    "name": tool_name,
+                    "arguments": completions[0]["choices"][0]["text"],
+                }
             }
-        } if len(completions) == 1 else {}
+            if len(completions) == 1
+            else {}
+        )
         return {
             "id": "chat" + completion["id"],
             "object": "chat.completion",
@@ -2611,7 +2676,7 @@ def chatml_function_calling(
                                 zip(completions_tool_name, completions)
                             )
                         ],
-                        **function_call
+                        **function_call,
                     },
                 }
             ],

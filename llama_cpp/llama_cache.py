@@ -242,7 +242,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
 
         return cache
 
-    def _find_longest_prefix_key(self, key: Tuple[int]) -> Tuple[int] | None:
+    def _find_longest_prefix_key(self, key: Tuple[int]) -> Optional[Tuple[int, ...]]:
         try:
             longest_prefix = self.keys.longest_prefix(key)
             return longest_prefix

@@ -234,7 +234,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
             print("LlamaStaticDiskCache.build_cache: eval", file=sys.stderr)
             model.eval(toks)
             state = model.save_state()
-            cache._private_setitem(toks, state)
+            cache._private_setitem(toks, state)  # pylint: disable=protected-access
 
         # Set up Trie for efficient prefix search
         for key in cache.cache.iterkeys():

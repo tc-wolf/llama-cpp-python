@@ -44,6 +44,8 @@ dev = [
     "mkdocs-material>=9.1.18",
     "pytest>=7.4.0",
     "httpx>=0.24.1",
+    "pandas>=2.2.1",
+    "tqdm>=4.66.2",
 ]
 all = ["llama_cpp_python[server,test,dev]"]
 

@@ -182,7 +182,9 @@ class LlamaStaticDiskCache(BaseLlamaCache):
     def __init__(
         self, cache_dir: str = ".cache/llama_cache", capacity_bytes: int = (2 << 30)
     ):
-        self.cache = diskcache.Cache(cache_dir, size_limit=capacity_bytes)
+        self.cache = diskcache.Cache(
+            cache_dir, size_limit=capacity_bytes, cull_limit=0, eviction_policy="none"
+        )
         self.capacity_bytes = capacity_bytes
         # Don't want to have to iterate over all keys when doing longest matching prefix search
         self.keys = pytrie.Trie.fromkeys(self.cache.iterkeys())
@@ -260,7 +262,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         key = tuple(key)
         # Don't worry about KeyError, that's handled by caller
         longest_prefix = self._find_longest_prefix_key(key)
-        value = self.cache[longest_prefix]
+        value: "llama_cpp.llama.LlamaState" = pickle.loads(self.cache[longest_prefix])
         return value
 
     def __setitem__(self, key: Sequence[int], value: "llama_cpp.llama.LlamaState"):

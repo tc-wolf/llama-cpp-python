@@ -39,7 +39,12 @@ from ._internals import _LlamaSamplingParams  # type: ignore
 from ._internals import _LlamaTokenDataArray  # type: ignore
 from ._logger import set_verbose
 from ._utils import suppress_stdout_stderr
-from .llama_cache import BaseLlamaCache
+from .llama_cache import (
+    BaseLlamaCache,
+    LlamaRAMCache,
+    LlamaDiskCache,
+    LlamaStaticDiskCache,
+)
 from .llama_grammar import LlamaGrammar
 from .llama_tokenizer import BaseLlamaTokenizer, LlamaTokenizer
 from .llama_types import *
@@ -992,9 +997,27 @@ class Llama:
                     self._input_ids.tolist(), prompt_tokens
                 )
                 if cache_prefix_len > eval_prefix_len:
+                    # Debugging: print the portion of the prompt tokens that are
+                    # found within prefix length For dumb reasons, have to skip
+                    # the first token if it's a BOS token.
+                    if prompt_tokens[0] == self.token_bos():
+                        print(
+                            "Matching prompt tokens: "
+                            f"{self.detokenize(prompt_tokens[1:cache_prefix_len - 1])}",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"Matching prompt tokens: {self.detokenize(prompt_tokens[:cache_prefix_len])}",
+                            file=sys.stderr,
+                        )
+
                     self.load_state(cache_item)
                     if self.verbose:
-                        print(f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}", file=sys.stderr)
+                        print(
+                            f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}",
+                            file=sys.stderr,
+                        )
             except KeyError:
                 if self.verbose:
                     print("Llama._create_completion: cache miss", file=sys.stderr)

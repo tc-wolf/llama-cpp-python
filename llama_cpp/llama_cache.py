@@ -221,6 +221,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         model: "llama_cpp.Llama",
         # Same default as LlamaDiskCache, 1 GB
         capacity_bytes: int = 2 << 30,
+        seed: Optional[int] = None,
     ) -> "LlamaStaticDiskCache":
         """
         Using model passed in, evaluates each prompt and stores LlamaState in cache.
@@ -230,6 +231,9 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         cache = LlamaStaticDiskCache(cache_dir, capacity_bytes)
 
         for p in prompts:
+            if seed:
+                model.set_seed(seed)
+            # TODO: Is this necessary? May be able to reuse system prompt (shared among prompts).
             model.reset()
             # Special tokens == control characters like in ChatML
             toks = model.tokenize(p.encode("utf-8"), add_bos=True, special=True)

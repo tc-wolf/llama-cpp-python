@@ -235,12 +235,15 @@ class LlamaStaticDiskCache(BaseLlamaCache):
                 model.set_seed(seed)
             # Special tokens == control characters like in ChatML
             toks = model.tokenize(p.encode("utf-8"), add_bos=True, special=True)
+            # Will always eval at least one token, same logic as in
+            # `Llama.generate` for prefix-match hit.
             # pylint: disable=protected-access
-            shared_prefix_len = model.longest_token_prefix(toks, model._input_ids)
+            shared_prefix_len = model.longest_token_prefix(toks[:-1], model._input_ids)
             # Reset to shared prefix length so that don't have to re-eval system prompt
             model.n_tokens = shared_prefix_len
+            eval_toks = toks[shared_prefix_len:]
             print("LlamaStaticDiskCache.build_cache: eval", file=sys.stderr)
-            model.eval(toks[shared_prefix_len:])
+            model.eval(eval_toks)
             state = model.save_state()
             cache._private_setitem(toks, state)  # pylint: disable=protected-access
 

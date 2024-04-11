@@ -162,6 +162,11 @@ class ModelSettings(BaseSettings):
         default=10,
         description="Number of tokens to predict using the draft model.",
     )
+
+    draft_model_max_ngram_size: int = Field(
+        default=2, description="Maximum ngram size to use for the draft model."
+    )
+
     # Misc
     verbose: bool = Field(
         default=True, description="Whether to print debug information."

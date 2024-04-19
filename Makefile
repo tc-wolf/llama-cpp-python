@@ -48,6 +48,42 @@ deploy.pypi:
 deploy.gh-docs:
 	mkdocs build
 	mkdocs gh-deploy
+	
+COMMIT := $(shell git rev-parse --short HEAD)
+
+deploy.docker:
+	# Make image with commit in name
+	docker build -t openblas_server_$(COMMIT) .
+	
+	# Run image and immediately exit (just want to create the container)
+	docker run openblas_server_$(COMMIT) bash
+	
+	# Get container ID, copy server tarball + libllama.so tarball, and delete
+	# temp container
+	CONTAINER_ID=$$(docker ps -lq --filter ancestor=openblas_server_$(COMMIT)) ; \
+	echo Container ID: $$CONTAINER_ID ; \
+	docker cp $$CONTAINER_ID:/root/dist/llama-cpp-py-server - | pigz -9 > llama-cpp-py-server.tgz ; \
+	docker cp $$CONTAINER_ID:/llama_cpp/libllama.so - | pigz -9 > libllama.so.tgz ; \
+	docker rm $$CONTAINER_ID
+
+	# More cleanup
+	yes | docker image prune
+	
+.PHONY: \
+	update \
+	update.vendor \
+	build \
+	build.cuda \
+	build.opencl \
+	build.openblas \
+	build.sdist \
+	deploy.pypi \
+	deploy.gh-docs \
+	deploy.docker \
+	docker \
+	echo-test \
+	clean
+	
 
 test:
 	python3 -m pytest
@@ -78,5 +114,7 @@ clean:
 	build.sdist \
 	deploy.pypi \
 	deploy.gh-docs \
+	deploy.docker \
 	docker \
+	echo-test \
 	clean

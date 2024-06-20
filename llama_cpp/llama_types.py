@@ -24,7 +24,7 @@ class EmbeddingUsage(TypedDict):
 class Embedding(TypedDict):
     index: int
     object: str
-    embedding: List[float]
+    embedding: Union[List[float], List[List[float]]]
 
 
 class CreateEmbeddingResponse(TypedDict):
@@ -84,6 +84,7 @@ class ChatCompletionFunction(TypedDict):
 class ChatCompletionResponseChoice(TypedDict):
     index: int
     message: "ChatCompletionResponseMessage"
+    logprobs: Optional[CompletionLogprobs]
     finish_reason: Optional[str]
 
 

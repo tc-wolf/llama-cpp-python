@@ -17,6 +17,11 @@ if (LLAMA_BUILD)
         set(LLAMA_FMA "Off" CACHE BOOL "llama: enable FMA" FORCE)
         set(LLAMA_F16C "Off" CACHE BOOL "llama: enable F16C" FORCE)
     endif()
+
+    if (APPLE)
+        set(LLAMA_METAL_EMBED_LIBRARY "On" CACHE BOOL "llama: embed metal library" FORCE)
+    endif()
+
     add_subdirectory(vendor/llama.cpp)
     install(
         TARGETS llama 
@@ -36,18 +41,21 @@ if (LLAMA_BUILD)
         RESOURCE DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp
     )
     # Workaround for Windows + CUDA https://github.com/abetlen/llama-cpp-python/issues/563
-    install(
-        FILES $<TARGET_RUNTIME_DLLS:llama>
-        DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp
-    )
-    install(
-        FILES $<TARGET_RUNTIME_DLLS:llama>
-        DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp
-    )
+    if (WIN32 AND (LLAMA_CUDA OR LLAMA_CUBLAS))
+        install(
+            FILES $<TARGET_RUNTIME_DLLS:llama>
+            DESTINATION ${SKBUILD_PLATLIB_DIR}/llama_cpp
+        )
+        install(
+            FILES $<TARGET_RUNTIME_DLLS:llama>
+            DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/llama_cpp
+        )
+    endif()
 
     if (LLAVA_BUILD)
-        if (LLAMA_CUBLAS)
+        if (LLAMA_CUBLAS OR LLAMA_CUDA)
             add_compile_definitions(GGML_USE_CUBLAS)
+            add_compile_definitions(GGML_USE_CUDA)
         endif()
 
         if (LLAMA_METAL)

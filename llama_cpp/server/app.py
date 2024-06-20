@@ -12,14 +12,7 @@ import llama_cpp
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream
 from starlette.concurrency import run_in_threadpool, iterate_in_threadpool
-from fastapi import (
-    Depends,
-    FastAPI,
-    APIRouter,
-    Request,
-    HTTPException,
-    status,
-)
+from fastapi import Depends, FastAPI, APIRouter, Request, HTTPException, status, Body
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
@@ -94,6 +87,13 @@ def get_llama_proxy():
             llama_outer_lock.release()
 
 
+_ping_message_factory = None
+
+def set_ping_message_factory(factory):
+   global  _ping_message_factory
+   _ping_message_factory = factory
+
+
 def create_app(
     settings: Settings | None = None,
     server_settings: ServerSettings | None = None,
@@ -104,7 +104,15 @@ def create_app(
         if not os.path.exists(config_file):
             raise ValueError(f"Config file {config_file} not found!")
         with open(config_file, "rb") as f:
-            config_file_settings = ConfigFileSettings.model_validate_json(f.read())
+            # Check if yaml file
+            if config_file.endswith(".yaml") or config_file.endswith(".yml"):
+                import yaml
+
+                config_file_settings = ConfigFileSettings.model_validate_json(
+                    json.dumps(yaml.safe_load(f))
+                )
+            else:
+                config_file_settings = ConfigFileSettings.model_validate_json(f.read())
             server_settings = ServerSettings.model_validate(config_file_settings)
             model_settings = config_file_settings.models
 
@@ -124,6 +132,7 @@ def create_app(
         middleware=middleware,
         title="🦙 llama.cpp Python API",
         version=llama_cpp.__version__,
+        root_path=server_settings.root_path,
     )
     app.add_middleware(
         CORSMiddleware,
@@ -136,6 +145,9 @@ def create_app(
 
     assert model_settings is not None
     set_llama_proxy(model_settings=model_settings)
+
+    if server_settings.disable_ping_events:
+        set_ping_message_factory(lambda: bytes())
 
     return app
 
@@ -263,6 +275,7 @@ async def create_completion(
         "best_of",
         "logit_bias_type",
         "user",
+        "min_tokens",
     }
     kwargs = body.model_dump(exclude=exclude)
 
@@ -275,6 +288,15 @@ async def create_completion(
 
     if body.grammar is not None:
         kwargs["grammar"] = llama_cpp.LlamaGrammar.from_string(body.grammar)
+
+    if body.min_tokens > 0:
+        _min_tokens_logits_processor = llama_cpp.LogitsProcessorList(
+            [llama_cpp.MinTokensLogitsProcessor(body.min_tokens, llama.token_eos())]
+        )
+        if "logits_processor" not in kwargs:
+            kwargs["logits_processor"] = _min_tokens_logits_processor
+        else:
+            kwargs["logits_processor"].extend(_min_tokens_logits_processor)
 
     iterator_or_completion: Union[
         llama_cpp.CreateCompletionResponse,
@@ -301,6 +323,7 @@ async def create_completion(
                 iterator=iterator(),
             ),
             sep="\n",
+            ping_message_factory=_ping_message_factory,
         )
     else:
         return iterator_or_completion
@@ -356,13 +379,83 @@ async def create_embedding(
 )
 async def create_chat_completion(
     request: Request,
-    body: CreateChatCompletionRequest,
+    body: CreateChatCompletionRequest = Body(
+        openapi_examples={
+            "normal": {
+                "summary": "Chat Completion",
+                "value": {
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": "What is the capital of France?"},
+                    ],
+                },
+            },
+            "json_mode": {
+                "summary": "JSON Mode",
+                "value": {
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": "Who won the world series in 2020"},
+                    ],
+                    "response_format": { "type": "json_object" }
+                },
+            },
+            "tool_calling": {
+                "summary": "Tool Calling",
+                "value": {
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": "Extract Jason is 30 years old."},
+                    ],
+                    "tools": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "User",
+                                "description": "User record",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "age": {"type": "number"},
+                                    },
+                                    "required": ["name", "age"],
+                                },
+                            }
+                        }
+                    ],
+                    "tool_choice": {
+                        "type": "function",
+                        "function": {
+                            "name": "User",
+                        }
+                    }
+                },
+            },
+            "logprobs": {
+                "summary": "Logprobs",
+                "value": {
+                    "model": "gpt-3.5-turbo",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": "What is the capital of France?"},
+                    ],
+                    "logprobs": True,
+                    "top_logprobs": 10
+                },
+            },
+        }
+    ),
     llama_proxy: LlamaProxy = Depends(get_llama_proxy),
 ) -> llama_cpp.ChatCompletion:
     exclude = {
         "n",
         "logit_bias_type",
         "user",
+        "min_tokens",
     }
     kwargs = body.model_dump(exclude=exclude)
     llama = llama_proxy(body.model)
@@ -375,6 +468,15 @@ async def create_chat_completion(
 
     if body.grammar is not None:
         kwargs["grammar"] = llama_cpp.LlamaGrammar.from_string(body.grammar)
+
+    if body.min_tokens > 0:
+        _min_tokens_logits_processor = llama_cpp.LogitsProcessorList(
+            [llama_cpp.MinTokensLogitsProcessor(body.min_tokens, llama.token_eos())]
+        )
+        if "logits_processor" not in kwargs:
+            kwargs["logits_processor"] = _min_tokens_logits_processor
+        else:
+            kwargs["logits_processor"].extend(_min_tokens_logits_processor)
 
     iterator_or_completion: Union[
         llama_cpp.ChatCompletion, Iterator[llama_cpp.ChatCompletionChunk]
@@ -400,6 +502,7 @@ async def create_chat_completion(
                 iterator=iterator(),
             ),
             sep="\n",
+            ping_message_factory=_ping_message_factory,
         )
     else:
         return iterator_or_completion
@@ -443,7 +546,7 @@ async def tokenize(
 ) -> TokenizeInputResponse:
     tokens = llama_proxy(body.model).tokenize(body.input.encode("utf-8"), special=True)
 
-    return {"tokens": tokens}
+    return TokenizeInputResponse(tokens=tokens)
 
 
 @router.post(
@@ -458,7 +561,7 @@ async def count_query_tokens(
 ) -> TokenizeInputCountResponse:
     tokens = llama_proxy(body.model).tokenize(body.input.encode("utf-8"), special=True)
 
-    return {"count": len(tokens)}
+    return TokenizeInputCountResponse(count=len(tokens))
 
 
 @router.post(
@@ -473,4 +576,4 @@ async def detokenize(
 ) -> DetokenizeInputResponse:
     text = llama_proxy(body.model).detokenize(body.tokens).decode("utf-8")
 
-    return {"text": text}
+    return DetokenizeInputResponse(text=text)

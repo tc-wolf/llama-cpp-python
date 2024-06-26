@@ -222,6 +222,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         # Same default as LlamaDiskCache, 1 GB
         capacity_bytes: int = 2 << 30,
         seed: Optional[int] = None,
+        add_bos=True,
     ) -> "LlamaStaticDiskCache":
         """
         Using model passed in, evaluates each prompt and stores LlamaState in cache.
@@ -234,7 +235,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
             if seed:
                 model.set_seed(seed)
             # Special tokens == control characters like in ChatML
-            toks = model.tokenize(p.encode("utf-8"), add_bos=True, special=True)
+            toks = model.tokenize(p.encode("utf-8"), add_bos=add_bos, special=True)
             # Will always eval at least one token, same logic as in
             # `Llama.generate` for prefix-match hit.
             # pylint: disable=protected-access

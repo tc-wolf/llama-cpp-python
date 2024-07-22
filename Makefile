@@ -69,7 +69,7 @@ deploy.docker:
 	CONTAINER_ID=$$(docker ps -lq --filter ancestor=openblas_server_$(COMMIT)) ; \
 	echo Container ID: $$CONTAINER_ID ; \
 	docker cp $$CONTAINER_ID:/root/dist/llama-cpp-py-server - | pigz -9 > llama-cpp-py-server.tgz ; \
-	docker cp $$CONTAINER_ID:/llama_cpp/libllama.so - | pigz -9 > libllama.so.tgz ; \
+	docker cp $$CONTAINER_ID:/llama_cpp/lib/libllama.so - | pigz -9 > libllama.so.tgz ; \
 	docker rm $$CONTAINER_ID
 
 	# More cleanup

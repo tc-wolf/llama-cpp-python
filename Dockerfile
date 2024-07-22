@@ -9,7 +9,7 @@ RUN python3 -m pip install --upgrade pip cmake scikit-build setuptools pyinstall
 
 COPY . .
 
-RUN PKG_CONFIG_PATH="./OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DLLAMA_BLAS=ON -DLLAMA_BLAS_VENDOR=OpenBLAS -DGGML_USE_LLAMAFILE=1" pip install -e .[server]
+RUN PKG_CONFIG_PATH="./OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_USE_LLAMAFILE=1" pip install -e .[server]
 
 RUN mv /OpenBLAS /opt/OpenBLAS
 

@@ -15,6 +15,7 @@ RUN mv /OpenBLAS /opt/OpenBLAS && cd /opt/OpenBLAS && make install PREFIX=/usr/ 
 RUN PKG_CONFIG_PATH="/opt/OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_LLAMAFILE=1" pip install -e .[server]
 
 RUN cd /root && pyinstaller -DF /llama_cpp/server/__main__.py \
-    --add-data /opt/OpenBLAS/:. \
-    --add-data /llama_cpp/:. \
+    --add-data /usr/lib/libopenblas.so:. \
+    --add-data /llama_cpp/lib/libllama.so:llama_cpp/lib \
+    --add-data /llama_cpp/lib/libggml.so:llama_cpp/lib \
     -n llama-cpp-py-server

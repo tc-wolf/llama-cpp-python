@@ -1,7 +1,7 @@
 FROM ubuntu:22.04
 
 # We need to set the host to 0.0.0.0 to allow outside access
-ENV HOST 0.0.0.0
+ENV HOST=0.0.0.0
 
 # Install the package
 RUN apt update && apt install -y ninja-build build-essential pkg-config python3 python3-pip git
@@ -13,7 +13,13 @@ COPY . .
 RUN mv /OpenBLAS /opt/OpenBLAS && cd /opt/OpenBLAS && make install PREFIX=/usr/ && cd /
 
 # Have to disable GGML_LLAMAFILE for Q4_0_4_4 quantization
-RUN PKG_CONFIG_PATH="/opt/OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DGGML_BLAS=ON;-DGGML_BLAS_VENDOR=OpenBLAS;-DGGML_LLAMAFILE=OFF;-DCMAKE_C_FLAGS=-march=armv8.2-a+crypto+fp16+rcpc+dotprod -mcpu=cortex-a78c+crypto+noprofile+nossbs+noflagm+nopauth -mtune=cortex-a78c" pip install -e .[server]
+ENV march=armv8.2-a+crypto+fp16+rcpc+dotprod 
+ENV mcpu=cortex-a78c+crypto+noprofile+nossbs+noflagm+nopauth
+ENV mtune=cortex-a78c
+
+ENV compiler_flags="-march=${march} -mcpu=${mcpu} -mtune=${mtune}"
+
+RUN PKG_CONFIG_PATH="/opt/OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_LLAMAFILE=OFF -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}'" pip install -v -e .[server] 2>&1 | tee buildlog.txt
 
 RUN cd /root && pyinstaller -DF /llama_cpp/server/__main__.py \
     --add-data /usr/lib/libopenblas.so:. \

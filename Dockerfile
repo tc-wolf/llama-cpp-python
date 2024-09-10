@@ -5,7 +5,7 @@ ENV HOST=0.0.0.0
 
 # Install the package
 RUN apt update && apt install -y ninja-build build-essential pkg-config python3 python3-pip git
-RUN python3 -m pip install --upgrade pip cmake scikit-build setuptools pyinstaller
+RUN python3 -m pip install --upgrade pip cmake scikit-build-core[pyproject] setuptools pyinstaller
 
 COPY . .
 
@@ -19,7 +19,10 @@ ENV mtune=cortex-a78c
 
 ENV compiler_flags="-march=${march} -mcpu=${mcpu} -mtune=${mtune}"
 
-RUN PKG_CONFIG_PATH="/opt/OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_LLAMAFILE=OFF -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}'" pip install -v -e .[server] 2>&1 | tee buildlog.txt
+# This is the build that uses OpenBLAS + LLAMAFILE
+# RUN PKG_CONFIG_PATH="/opt/OpenBLAS/install/lib/pkgconfig" CMAKE_ARGS="-DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS -DGGML_LLAMAFILE=ON -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}'" pip install -v -e .[server] 2>&1 | tee buildlog.txt
+# This is a release build that works
+RUN CMAKE_ARGS="-DGGML_LLAMAFILE=OFF -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}' -DCMAKE_BUILD_TYPE=Release" pip install -v -e .[server] 2>&1 | tee buildlog.txt
 
 RUN cd /root && pyinstaller -DF /llama_cpp/server/__main__.py \
     --add-data /usr/lib/libopenblas.so:. \

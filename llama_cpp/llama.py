@@ -791,8 +791,11 @@ class Llama:
                 tokens = tokens[longest_prefix:]
                 self.n_tokens = longest_prefix
                 if self.verbose:
-                    print(f"Llama.generate: {longest_prefix} prefix-match hit, "
-                          f"remaining {len(tokens)} prompt tokens to eval", file=sys.stderr)                    
+                    print(
+                        f"Llama.generate: {longest_prefix} prefix-match hit, "
+                        f"remaining {len(tokens)} prompt tokens to eval",
+                        file=sys.stderr,
+                    )
 
         # Reset the model state
         if reset:
@@ -1195,11 +1198,17 @@ class Llama:
 
         if self.cache:
             try:
-                cache_item = self.cache[prompt_tokens]
+                # pylint: disable=protected-access
+                longest_cache_key = self.cache._find_longest_prefix_key(prompt_tokens)
+
+                if longest_cache_key is None:
+                    raise KeyError
+
                 if self.verbose:
                     print("Item found in cache", file=sys.stderr)
+
                 cache_prefix_len = Llama.longest_token_prefix(
-                    cache_item.input_ids.tolist(), prompt_tokens
+                    longest_cache_key, prompt_tokens
                 )
                 eval_prefix_len = Llama.longest_token_prefix(
                     self._input_ids.tolist(), prompt_tokens
@@ -1208,24 +1217,38 @@ class Llama:
                     # Debugging: print the portion of the prompt tokens that are
                     # found within prefix length For dumb reasons, have to skip
                     # the first token if it's a BOS token.
-                    if prompt_tokens[0] == self.token_bos():
+                    before = time.time()
+                    cache_item = self.cache[prompt_tokens]
+                    after = time.time()
+                    if self.verbose:
+                        print("Cache lookup took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)
+                    if self.verbose and (prompt_tokens[0] == self.token_bos()):
                         print(
                             "Matching prompt tokens: "
-                            f"{self.detokenize(prompt_tokens[1:cache_prefix_len - 1])}",
+                            f"{self.detokenize(prompt_tokens[1:cache_prefix_len - 1]).decode('utf-8')}",
                             file=sys.stderr,
                         )
-                    else:
+                    elif self.verbose:
                         print(
-                            f"Matching prompt tokens: {self.detokenize(prompt_tokens[:cache_prefix_len])}",
+                            f"Matching prompt tokens: {self.detokenize(prompt_tokens[:cache_prefix_len]).decode('utf-8')}",
                             file=sys.stderr,
                         )
 
+                    before = time.time()
                     self.load_state(cache_item)
+                    after = time.time()
+                    if self.verbose:
+                        print("State loading took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)
                     if self.verbose:
                         print(
                             f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}",
                             file=sys.stderr,
                         )
+                elif self.verbose:
+                    print(
+                        f"Llama._create_completion: not reloading from cache, cache prefix len {cache_prefix_len} < eval prefix len {eval_prefix_len}",
+                        file=sys.stderr,
+                    )
             except KeyError:
                 if self.verbose:
                     print("Llama._create_completion: cache miss", file=sys.stderr)
@@ -1917,6 +1940,7 @@ class Llama:
             or self._chat_handlers.get(self.chat_format)
             or llama_chat_format.get_chat_completion_handler(self.chat_format)
         )
+        print(f"Got seed: {seed}")
         return handler(
             llama=self,
             messages=messages,

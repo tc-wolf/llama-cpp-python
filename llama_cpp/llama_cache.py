@@ -345,15 +345,29 @@ class LlamaStaticDiskCache(BaseLlamaCache):
                     f"{reloaded_state_size} does not match original size {state_size}"
                 )
 
+            # cffi dtype, compatible w/ numpy through ducktyping :scared:
+            dtype = llama_cpp.llama_cpp.llama_get_logits_ith.restype._type_
+
+            # If model scores dtype doesn't match dtype from sig, then can't
+            # copy it.
+            if model.scores.dtype != dtype:
+                raise StateReloadError(
+                    f"Expected scores to be {dtype} but got "
+                    f"{model.scores.dtype} - are you running this in the future? Or the past?"
+                )
+
             # Will have a ValueError for null pointers
             last_position_logits = np.array(
                 ctypes.cast(
                     model._ctx.get_logits_ith(-1),
-                    ctypes.POINTER(ctypes.c_float * model.n_vocab()),
-                )
+                    ctypes.POINTER(dtype * model.n_vocab()),
+                ).contents,
+                # Otherwise will be a view into C array on llama.cpp context
+                copy=True,
+                dtype=dtype,
             )
 
-            model._scores[-1, :] = last_position_logits.copy()
+            model._scores[-1, :] = last_position_logits
 
         except ValueError as e:
             raise StateReloadError from e

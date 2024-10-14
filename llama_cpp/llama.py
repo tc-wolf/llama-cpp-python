@@ -1235,7 +1235,7 @@ class Llama:
                         )
 
                     before = time.time()
-                    self.load_state(cache_item)
+                    self.cache.reload_from_cache_state(self, cache_item)
                     after = time.time()
                     if self.verbose:
                         print("State loading took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)

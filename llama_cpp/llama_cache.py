@@ -1,3 +1,4 @@
+import ctypes
 import pickle
 import sys
 from abc import ABC, abstractmethod
@@ -5,11 +6,18 @@ from collections import OrderedDict
 from typing import Optional, Sequence, Tuple
 
 import diskcache
+import numpy as np
 import pytrie
 
 import llama_cpp.llama
 
 from .llama_types import *
+
+
+class StateReloadError(Exception):
+    """
+    Error for when state from cache cannot be read by current model.
+    """
 
 
 class BaseLlamaCache(ABC):
@@ -47,6 +55,20 @@ class BaseLlamaCache(ABC):
         self, key: Sequence[int], value: "llama_cpp.llama.LlamaState"
     ) -> None:
         raise NotImplementedError
+
+    @classmethod
+    def reload_from_cache_state(
+        cls, model: "llama_cpp.llama.Llama", state: "llama_cpp.llama.LlamaState"
+    ) -> None:
+        """
+        Reload the state onto the model.  Normally this is done with load_state
+        (as state is created with the corresponding `save_state`), but for some
+        caches may need special handling as an optimization.
+
+        Throws a StateReloadError if the state is not compatible with the model
+        (for example, logits )
+        """
+        model.load_state(state)
 
 
 class LlamaRAMCache(BaseLlamaCache):
@@ -278,3 +300,60 @@ class LlamaStaticDiskCache(BaseLlamaCache):
     def __setitem__(self, key: Sequence[int], value: "llama_cpp.llama.LlamaState"):
         # Should this just be a warning?
         raise ValueError("Cannot set items in a static cache")
+
+    @classmethod
+    def reload_from_cache_state(
+        cls, model: "llama_cpp.llama.Llama", state: "llama_cpp.llama.LlamaState"
+    ) -> None:
+        """
+        Skip reloading logits and set last logits from llama.cpp context struct
+        as the scores for last token of prompt.
+        """
+        # pylint: disable=protected-access
+        # Check if model needs logits (draft model, log probs required, etc.)
+        if (
+            # May be overly pessimistic if don't want embeddings for prompt tokens.
+            model.context_params.embeddings
+            or model.context_params.logits_all
+            # Same: is this really a hard requirement? We need token IDs from
+            # draft model and all the logits from base model to do verification
+            # of candidate tokens, but not for prompt tokens.
+            or model.draft_model is not None
+        ):
+            raise StateReloadError(
+                "Model requires logits to be reloaded, but static cache does not store logits"
+            )
+
+        model.n_tokens = state.n_tokens
+        model.input_ids = state.input_ids.copy()
+        model.scores[:] = 0.0
+
+        state_size = state.llama_state_size
+
+        try:
+            llama_state_array_type = ctypes.c_uint8 * state_size
+            # Don't have to do `from_buffer_copy` since `llama_set_state_data`
+            # will copy anyway.
+            llama_state = llama_state_array_type.from_buffer(state.llama_state)
+            reloaded_state_size = llama_cpp.llama_set_state_data(
+                model._ctx.ctx, llama_state
+            )
+
+            if reloaded_state_size != state_size:
+                raise StateReloadError(
+                    "Failed to set llama state data - reloaded state size "
+                    f"{reloaded_state_size} does not match original size {state_size}"
+                )
+
+            # Will have a ValueError for null pointers
+            last_position_logits = np.array(
+                ctypes.cast(
+                    model._ctx.get_logits_ith(-1),
+                    ctypes.POINTER(ctypes.c_float * model.n_vocab()),
+                )
+            )
+
+            model._scores[-1, :] = last_position_logits.copy()
+
+        except ValueError as e:
+            raise StateReloadError from e

@@ -332,9 +332,9 @@ class LlamaStaticDiskCache(BaseLlamaCache):
 
         try:
             llama_state_array_type = ctypes.c_uint8 * state_size
-            # Don't have to do `from_buffer_copy` since `llama_set_state_data`
-            # will copy anyway.
-            llama_state = llama_state_array_type.from_buffer(state.llama_state)
+            # Have to do from_buffer_copy since LlamaState.llama_state is
+            # non-mutable bytes, not mutable bytearray.
+            llama_state = llama_state_array_type.from_buffer_copy(state.llama_state)
             reloaded_state_size = llama_cpp.llama_set_state_data(
                 model._ctx.ctx, llama_state
             )

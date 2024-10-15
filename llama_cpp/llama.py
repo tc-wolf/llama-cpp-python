@@ -38,6 +38,7 @@ from .llama_cache import (
     LlamaDiskCache,  # type: ignore
     LlamaStaticDiskCache,  # type: ignore
     LlamaRAMCache,  # type: ignore
+    StateReloadError,  # type: ignore
 )
 
 import numpy as np
@@ -1234,16 +1235,23 @@ class Llama:
                             file=sys.stderr,
                         )
 
-                    before = time.time()
-                    self.load_state(cache_item)
-                    after = time.time()
-                    if self.verbose:
-                        print("State loading took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)
-                    if self.verbose:
-                        print(
-                            f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}",
-                            file=sys.stderr,
-                        )
+                    try:
+                        before = time.time()
+                        self.cache.reload_from_cache_state(self, cache_item)
+                        after = time.time()
+                        if self.verbose:
+                            print("State loading took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)
+                            print(
+                                f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}",
+                                file=sys.stderr,
+                            )
+                    except StateReloadError as e:
+                        if self.verbose:
+                            print(
+                                f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}, but failed to reload state: {e}",
+                                file=sys.stderr,
+                            )
+                            print("Falling back to re-evaluating prompt", file=sys.stderr)
                 elif self.verbose:
                     print(
                         f"Llama._create_completion: not reloading from cache, cache prefix len {cache_prefix_len} < eval prefix len {eval_prefix_len}",

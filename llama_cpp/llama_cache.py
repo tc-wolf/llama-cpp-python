@@ -245,6 +245,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         capacity_bytes: int = 2 << 30,
         seed: Optional[int] = None,
         add_bos=True,
+        save_logits: bool = True,
     ) -> "LlamaStaticDiskCache":
         """
         Using model passed in, evaluates each prompt and stores LlamaState in cache.
@@ -268,6 +269,10 @@ class LlamaStaticDiskCache(BaseLlamaCache):
             print("LlamaStaticDiskCache.build_cache: eval", file=sys.stderr)
             model.eval(eval_toks)
             state = model.save_state()
+
+            if not save_logits:
+                state.scores = None
+
             cache._private_setitem(toks, state)  # pylint: disable=protected-access
 
         # Set up Trie for efficient prefix search

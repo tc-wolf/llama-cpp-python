@@ -119,6 +119,7 @@ def test_disk_cache_e2e(small_model: Llama):
             capacity_bytes=capacity_bytes,
             add_bos=True,
             seed=1234,
+            save_logits=False,
         )
 
         for p in prompts:

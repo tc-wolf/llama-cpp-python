@@ -271,6 +271,12 @@ class LlamaStaticDiskCache(BaseLlamaCache):
             state = model.save_state()
 
             if not save_logits:
+                if (
+                    model.context_params.logits_all
+                    or model.draft_model is not None
+                    or model.context_params.embeddings
+                ):
+                    raise ValueError("Cannot save state without logits")
                 state.scores = None
 
             cache._private_setitem(toks, state)  # pylint: disable=protected-access
@@ -313,6 +319,9 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         """
         Skip reloading logits and set last logits from llama.cpp context struct
         as the scores for last token of prompt.
+
+        TODO: This always assumes want to skip loading logits, but could check
+        if state has scores that are not None.
         """
         # pylint: disable=protected-access
         # Check if model needs logits (draft model, log probs required, etc.)

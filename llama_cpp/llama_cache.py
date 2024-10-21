@@ -245,7 +245,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         capacity_bytes: int = 2 << 30,
         seed: Optional[int] = None,
         add_bos=True,
-        save_logits: bool = True,
+        save_logits: bool = False,
     ) -> "LlamaStaticDiskCache":
         """
         Using model passed in, evaluates each prompt and stores LlamaState in cache.
@@ -276,7 +276,10 @@ class LlamaStaticDiskCache(BaseLlamaCache):
                     or model.draft_model is not None
                     or model.context_params.embeddings
                 ):
-                    raise ValueError("Cannot save state without logits")
+                    # Erroring instead of falling back to just saving with scores
+                    raise ValueError(
+                        "Cannot save state without logits - model requires logits to sample."
+                    )
                 state.scores = None
 
             cache._private_setitem(toks, state)  # pylint: disable=protected-access
@@ -319,13 +322,11 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         """
         Skip reloading logits and set last logits from llama.cpp context struct
         as the scores for last token of prompt.
-
-        TODO: This always assumes want to skip loading logits, but could check
-        if state has scores that are not None.
         """
         # pylint: disable=protected-access
+
         # Check if model needs logits (draft model, log probs required, etc.)
-        if (
+        need_to_reload_without_scores = (
             # May be overly pessimistic if don't want embeddings for prompt tokens.
             model.context_params.embeddings
             or model.context_params.logits_all
@@ -333,11 +334,19 @@ class LlamaStaticDiskCache(BaseLlamaCache):
             # draft model and all the logits from base model to do verification
             # of candidate tokens, but not for prompt tokens.
             or model.draft_model is not None
-        ):
-            raise StateReloadError(
-                "Model requires logits to be reloaded, but static cache does not store logits"
-            )
+        )
 
+        if need_to_reload_without_scores:
+            if state.scores is None:
+                raise StateReloadError(
+                    "Model requires logits to be reloaded, but static cache does not store logits"
+                )
+            else:
+                model.load_state(state)
+                return
+
+        # Case where don't need logits from numpy and can just get last-token
+        # logits from llama.cpp struct
         model.n_tokens = state.n_tokens
         model.input_ids = state.input_ids.copy()
         model.scores[:] = 0.0

@@ -326,7 +326,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         # pylint: disable=protected-access
 
         # Check if model needs logits (draft model, log probs required, etc.)
-        need_to_reload_without_scores = (
+        model_needs_scores_to_reload = (
             # May be overly pessimistic if don't want embeddings for prompt tokens.
             model.context_params.embeddings
             or model.context_params.logits_all
@@ -336,7 +336,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
             or model.draft_model is not None
         )
 
-        if need_to_reload_without_scores:
+        if model_needs_scores_to_reload:
             if state.scores is None:
                 raise StateReloadError(
                     "Model requires logits to be reloaded, but static cache does not store logits"

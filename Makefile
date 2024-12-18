@@ -54,16 +54,16 @@ deploy.pypi:
 deploy.gh-docs:
 	mkdocs build
 	mkdocs gh-deploy
-	
+
 COMMIT := $(shell git rev-parse --short HEAD)
 
 deploy.docker:
 	# Make image with commit in name
 	docker build -t openblas_server_$(COMMIT) .
-	
+
 	# Run image and immediately exit (just want to create the container)
 	docker run openblas_server_$(COMMIT) bash
-	
+
 	# Get container ID, copy server tarball + libllama.so tarball, and delete
 	# temp container
 	CONTAINER_ID=$$(docker ps -lq --filter ancestor=openblas_server_$(COMMIT)) ; \
@@ -73,7 +73,25 @@ deploy.docker:
 
 	# More cleanup
 	yes | docker image prune
-	
+
+# Build standalone server, may want to do in fresh venv to avoid bloat
+deploy.pyinstaller.mac:
+	# CPU must be aarch64 and OS is MacOS
+	@if [ `uname -m` != "arm64" ]; then echo "Must be on aarch64"; exit 1; fi
+	@if [ `uname` != "Darwin" ]; then echo "Must be on MacOS"; exit 1; fi
+	@echo "Building and installing with proper env vars for aarch64-specific ops"
+	CMAKE_ARGS="-DGGML_METAL=off -DGGML_LLAMAFILE=OFF -DGGML_BLAS=OFF -DCMAKE_BUILD_TYPE=Release" python3 -m pip install -v -e .[server,dev]
+	@server_path=$$(python -c 'import llama_cpp.server; print(llama_cpp.server.__file__)' | sed s/init/main/) ; \
+	echo "Server path: $$server_path" ; \
+	libllama_path=$$(python -c 'import llama_cpp.llama_cpp; print(llama_cpp.llama_cpp._load_shared_library("llama")._name)') ; \
+	libggml_path=$$(python -c 'import llama_cpp.llama_cpp; print(llama_cpp.llama_cpp._load_shared_library("ggml")._name)') ; \
+	echo "libllama path: $$libllama_path" ; \
+	echo "libggml path: $$libggml_path" ; \
+	pyinstaller -DF $$server_path \
+	--add-data $$libllama_path:llama_cpp/lib \
+	--add-data $$libggml_path:llama_cpp/lib \
+	-n llama-cpp-py-server
+
 test:
 	python3 -m pytest
 
@@ -104,5 +122,6 @@ clean:
 	deploy.pypi \
 	deploy.gh-docs \
 	deploy.docker \
+	deploy.pyinstaller.mac \
 	docker \
 	clean

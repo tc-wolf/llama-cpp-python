@@ -55,6 +55,7 @@ dev = [
     "httpx>=0.24.1",
     "pandas>=2.2.1",
     "tqdm>=4.66.2",
+    "pyinstaller>=6.11.1",
 ]
 all = ["llama_cpp_python[server,test,dev]"]
 

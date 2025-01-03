@@ -8,7 +8,7 @@ RUN echo "Glibc version:\n" && /lib/aarch64-linux-gnu/libc.so.6
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     --no-install-recommends ninja-build pkg-config python3.9 \
-    python3-pip git
+    python3.9-dev python3-pip git
 
 # Install toolchain (GCC 11)
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends software-properties-common && \
@@ -34,8 +34,12 @@ ENV mtune=cortex-a78c
 ENV compiler_flags="-march=${march} -mcpu=${mcpu} -mtune=${mtune}"
 
 # This is a release build that works (have to disable GGML_LLAMAFILE for Q4_0_4_4 quantization)
-RUN CMAKE_ARGS="-DGGML_LLAMAFILE=OFF -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}' -DCMAKE_BUILD_TYPE=Release" python3.9 -m pip install -v -e .[server] 2>&1 | tee buildlog.txt
+RUN CC=gcc-11 CXX=g++-11 CMAKE_BUILD_TYPE=Release \
+    CMAKE_ARGS="-DGGML_LLAMAFILE=OFF -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}'" \
+    python3.9 -m pip install -v -e .[server] 2>&1 | tee buildlog.txt
 
+# TODO: Export buildlog.txt in `make deploy.docker` step for review after
+# building.
 RUN cd /root && pyinstaller -DF /llama_cpp/server/__main__.py \
     --add-data /llama_cpp/lib/libllama.so:llama_cpp/lib \
     --add-data /llama_cpp/lib/libggml.so:llama_cpp/lib \

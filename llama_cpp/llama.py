@@ -12,7 +12,6 @@ import time
 import uuid
 import warnings
 import contextlib
-import multiprocessing
 
 from typing import (
     Any,
@@ -263,28 +262,28 @@ class Llama:
             for i, (k, v) in enumerate(kv_overrides.items()):
                 self._kv_overrides_array[i].key = k.encode("utf-8")
                 if isinstance(v, bool):
-                    self._kv_overrides_array[
-                        i
-                    ].tag = llama_cpp.LLAMA_KV_OVERRIDE_TYPE_BOOL
+                    self._kv_overrides_array[i].tag = (
+                        llama_cpp.LLAMA_KV_OVERRIDE_TYPE_BOOL
+                    )
                     self._kv_overrides_array[i].value.val_bool = v
                 elif isinstance(v, int):
-                    self._kv_overrides_array[
-                        i
-                    ].tag = llama_cpp.LLAMA_KV_OVERRIDE_TYPE_INT
+                    self._kv_overrides_array[i].tag = (
+                        llama_cpp.LLAMA_KV_OVERRIDE_TYPE_INT
+                    )
                     self._kv_overrides_array[i].value.val_i64 = v
                 elif isinstance(v, float):
-                    self._kv_overrides_array[
-                        i
-                    ].tag = llama_cpp.LLAMA_KV_OVERRIDE_TYPE_FLOAT
+                    self._kv_overrides_array[i].tag = (
+                        llama_cpp.LLAMA_KV_OVERRIDE_TYPE_FLOAT
+                    )
                     self._kv_overrides_array[i].value.val_f64 = v
                 elif isinstance(v, str):  # type: ignore
                     v_bytes = v.encode("utf-8")
                     if len(v_bytes) > 128:  # TODO: Make this a constant
                         raise ValueError(f"Value for {k} is too long: {v}")
                     v_bytes = v_bytes.ljust(128, b"\0")
-                    self._kv_overrides_array[
-                        i
-                    ].tag = llama_cpp.LLAMA_KV_OVERRIDE_TYPE_STR
+                    self._kv_overrides_array[i].tag = (
+                        llama_cpp.LLAMA_KV_OVERRIDE_TYPE_STR
+                    )
                     # copy min(v_bytes, 128) to str_value
                     address = typing.cast(
                         int,
@@ -300,9 +299,9 @@ class Llama:
                 else:
                     raise ValueError(f"Unknown value type for {k}: {v}")
 
-            self._kv_overrides_array[
-                -1
-            ].key = b"\0"  # ensure sentinel element is zeroed
+            self._kv_overrides_array[-1].key = (
+                b"\0"  # ensure sentinel element is zeroed
+            )
             self.model_params.kv_overrides = self._kv_overrides_array
 
         self.n_batch = min(n_ctx, n_batch)  # ???
@@ -444,9 +443,9 @@ class Llama:
 
         self.chat_format = chat_format
         self.chat_handler = chat_handler
-        self._chat_handlers: Dict[
-            str, llama_chat_format.LlamaChatCompletionHandler
-        ] = {}
+        self._chat_handlers: Dict[str, llama_chat_format.LlamaChatCompletionHandler] = (
+            {}
+        )
 
         self.draft_model = draft_model
 
@@ -935,7 +934,8 @@ class Llama:
 
                 sample_idx += 1
                 if stopping_criteria is not None and stopping_criteria(
-                    self._input_ids[: sample_idx], self._scores[sample_idx - self.n_tokens, :]
+                    self._input_ids[:sample_idx],
+                    self._scores[sample_idx - self.n_tokens, :],
                 ):
                     return
                 tokens_or_none = yield token
@@ -1158,9 +1158,9 @@ class Llama:
         bos_token_id: int = self.token_bos()
         cls_token_id: int = self._model.token_cls()
         sep_token_id: int = self._model.token_sep()
-        prefix_token_id: int = 0 # self._model.token_prefix() # TODO: Fix
-        middle_token_id: int = 0 # self._model.token_middle() # TODO: Fix
-        suffix_token_id: int = 0 # self._model.token_suffix() # TODO: Fix
+        prefix_token_id: int = 0  # self._model.token_prefix() # TODO: Fix
+        middle_token_id: int = 0  # self._model.token_middle() # TODO: Fix
+        suffix_token_id: int = 0  # self._model.token_suffix() # TODO: Fix
         add_space_prefix: bool = (
             self.metadata.get("tokenizer.ggml.add_space_prefix", "true") == "true"
         )
@@ -1321,7 +1321,12 @@ class Llama:
                     cache_item = self.cache[prompt_tokens]
                     after = time.time()
                     if self.verbose:
-                        print("Cache lookup took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)
+                        print(
+                            "Cache lookup took",
+                            round((after - before) * 1_000, 4),
+                            "ms",
+                            file=sys.stderr,
+                        )
                     if self.verbose and (prompt_tokens[0] == self.token_bos()):
                         print(
                             "Matching prompt tokens: "
@@ -1339,7 +1344,12 @@ class Llama:
                         self.cache.reload_from_cache_state(self, cache_item)
                         after = time.time()
                         if self.verbose:
-                            print("State loading took", round((after - before) * 1_000, 4), "ms", file=sys.stderr)
+                            print(
+                                "State loading took",
+                                round((after - before) * 1_000, 4),
+                                "ms",
+                                file=sys.stderr,
+                            )
                             print(
                                 f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}",
                                 file=sys.stderr,
@@ -1350,7 +1360,9 @@ class Llama:
                                 f"Llama._create_completion: cache hit with len {cache_prefix_len} / {len(prompt_tokens)}, but failed to reload state: {e}",
                                 file=sys.stderr,
                             )
-                            print("Falling back to re-evaluating prompt", file=sys.stderr)
+                            print(
+                                "Falling back to re-evaluating prompt", file=sys.stderr
+                            )
                 elif self.verbose:
                     print(
                         f"Llama._create_completion: not reloading from cache, cache prefix len {cache_prefix_len} < eval prefix len {eval_prefix_len}",
@@ -1363,7 +1375,7 @@ class Llama:
         if seed is not None:
             self.set_seed(seed)
         else:
-            self.set_seed(random.Random(self._seed).randint(0, 2 ** 32))
+            self.set_seed(random.Random(self._seed).randint(0, 2**32))
 
         finish_reason = "length"
         multibyte_fix = 0
@@ -2174,13 +2186,13 @@ class Llama:
     def save_state(self) -> LlamaState:
         if self.verbose:
             print("Llama.save_state: saving llama state", file=sys.stderr)
-        state_size = llama_cpp.llama_get_state_size(self._ctx.ctx)
+        state_size = llama_cpp.llama_state_get_size(self._ctx.ctx)
         if self.verbose:
             print(f"Llama.save_state: got state size: {state_size}", file=sys.stderr)
         llama_state = (ctypes.c_uint8 * int(state_size))()
         if self.verbose:
             print("Llama.save_state: allocated state", file=sys.stderr)
-        n_bytes = llama_cpp.llama_copy_state_data(self._ctx.ctx, llama_state)
+        n_bytes = llama_cpp.llama_state_get_data(self._ctx.ctx, llama_state, state_size)
         if self.verbose:
             print(f"Llama.save_state: copied llama state: {n_bytes}", file=sys.stderr)
         if int(n_bytes) > int(state_size):
@@ -2213,7 +2225,10 @@ class Llama:
         LLamaStateArrayType = ctypes.c_uint8 * state_size
         llama_state = LLamaStateArrayType.from_buffer_copy(state.llama_state)
 
-        if llama_cpp.llama_set_state_data(self._ctx.ctx, llama_state) != state_size:
+        # Use non-deprecated llama_state_set_data over llama_set_state_data
+        if (ctypes.sizeof(llama_state) != state_size) or llama_cpp.llama_state_set_data(
+            self._ctx.ctx, llama_state, ctypes.sizeof(llama_state)
+        ) != state_size:
             raise RuntimeError("Failed to set llama state data")
 
     def n_ctx(self) -> int:
@@ -2365,7 +2380,11 @@ class Llama:
         if additional_files:
             for additonal_file_name in additional_files:
                 # find the additional shard file:
-                matching_additional_files = [file for file in file_list if fnmatch.fnmatch(file, additonal_file_name)]
+                matching_additional_files = [
+                    file
+                    for file in file_list
+                    if fnmatch.fnmatch(file, additonal_file_name)
+                ]
 
                 if len(matching_additional_files) == 0:
                     raise ValueError(

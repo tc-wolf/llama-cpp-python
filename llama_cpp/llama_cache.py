@@ -253,6 +253,11 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         """
         cache = LlamaStaticDiskCache(cache_dir, capacity_bytes)
 
+        if save_logits and not model.context_params.logits_all:
+            raise ValueError(
+                "Cannot save logits in cache when model is not configured to return logits."
+            )
+
         for p in prompts:
             if seed:
                 model.set_seed(seed)
@@ -273,6 +278,9 @@ class LlamaStaticDiskCache(BaseLlamaCache):
                 if (
                     model.context_params.logits_all
                     or model.draft_model is not None
+                    # This may be overly cautious, `embed` method does not use
+                    # numpy scores, instead uses logit values on llama.cpp
+                    # context.
                     or model.context_params.embeddings
                 ):
                     # Erroring instead of falling back to just saving with scores
@@ -365,7 +373,7 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         if (
             bytes_set := llama_cpp.llama_state_set_data(
                 model._ctx.ctx, llama_state, ctypes.sizeof(llama_state)
-            ),
+            )
         ) != state_size:
             raise RuntimeError(
                 "Failed to set llama state data - mismatch between bytes set "

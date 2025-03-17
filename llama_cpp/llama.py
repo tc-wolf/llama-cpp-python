@@ -2226,9 +2226,12 @@ class Llama:
         llama_state = LLamaStateArrayType.from_buffer_copy(state.llama_state)
 
         # Use non-deprecated llama_state_set_data over llama_set_state_data
-        if (ctypes.sizeof(llama_state) != state_size) or llama_cpp.llama_state_set_data(
-            self._ctx.ctx, llama_state, ctypes.sizeof(llama_state)
-        ) != state_size:
+        if (
+            llama_cpp.llama_state_set_data(
+                self._ctx.ctx, llama_state, ctypes.sizeof(llama_state)
+            )
+            != state_size
+        ):
             raise RuntimeError("Failed to set llama state data")
 
     def n_ctx(self) -> int:

@@ -1,12 +1,11 @@
-import ctypes
 import pickle
+import ctypes
 import sys
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Optional, Sequence, Tuple
 
 import diskcache
-import numpy as np
 import pytrie
 
 import llama_cpp.llama
@@ -77,9 +76,9 @@ class LlamaRAMCache(BaseLlamaCache):
     def __init__(self, capacity_bytes: int = (2 << 30)):
         super().__init__(capacity_bytes)
         self.capacity_bytes = capacity_bytes
-        self.cache_state: OrderedDict[
-            Tuple[int, ...], "llama_cpp.llama.LlamaState"
-        ] = OrderedDict()
+        self.cache_state: OrderedDict[Tuple[int, ...], "llama_cpp.llama.LlamaState"] = (
+            OrderedDict()
+        )
 
     @property
     def cache_size(self):
@@ -320,8 +319,8 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         cls, model: "llama_cpp.llama.Llama", state: "llama_cpp.llama.LlamaState"
     ) -> None:
         """
-        Skip reloading logits and set last logits from llama.cpp context struct
-        as the scores for last token of prompt.
+        Skip reloading logits (zero-out instead) unless `logits_all` or
+        otherwise needed.
         """
         # pylint: disable=protected-access
 
@@ -349,17 +348,40 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         # logits from llama.cpp struct
         model.n_tokens = state.n_tokens
         model.input_ids = state.input_ids.copy()
-        model.scores[:] = 0.0
+        model._seed = state.seed
+
+        if model.scores.shape[0] < state.n_tokens:
+            raise StateReloadError(
+                f"Model context / batch size {model.scores.shape[0]} not large "
+                f"enough for saved state tokens {state.n_tokens}."
+            )
 
         state_size = state.llama_state_size
 
+        LlamaStateArrayType = ctypes.c_uint8 * state_size
+        llama_state = LlamaStateArrayType.from_buffer_copy(state.llama_state)
+
+        # Use non-deprecated llama_state_set_data over llama_set_state_data
+        if (
+            bytes_set := llama_cpp.llama_state_set_data(
+                model._ctx.ctx, llama_state, ctypes.sizeof(llama_state)
+            ),
+        ) != state_size:
+            raise RuntimeError(
+                "Failed to set llama state data - mismatch between bytes set "
+                f"{bytes_set} and state size {state_size}"
+            )
+
+        # No longer need to reload scores, since now use llama.cpp sampler.
+        # pylint: disable=pointless-string-statement
+        """
         try:
             llama_state_array_type = ctypes.c_uint8 * state_size
             # Have to do from_buffer_copy since LlamaState.llama_state is
             # non-mutable bytes, not mutable bytearray.
             llama_state = llama_state_array_type.from_buffer_copy(state.llama_state)
-            reloaded_state_size = llama_cpp.llama_set_state_data(
-                model._ctx.ctx, llama_state
+            reloaded_state_size = llama_cpp.llama_state_set_data(
+                model._ctx.ctx, llama_state, ctypes.sizeof(llama_state)
             )
 
             if reloaded_state_size != state_size:
@@ -394,3 +416,4 @@ class LlamaStaticDiskCache(BaseLlamaCache):
 
         except ValueError as e:
             raise StateReloadError from e
+        """

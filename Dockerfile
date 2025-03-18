@@ -33,9 +33,14 @@ ENV mtune=cortex-a78c
 
 ENV compiler_flags="-march=${march} -mcpu=${mcpu} -mtune=${mtune}"
 
-# This is a release build that works (have to disable GGML_LLAMAFILE for Q4_0_4_4 quantization)
+# Have to build for Q4_0 quantization set GGML_CPU_AARCH64=ON and then have to
+# set march flags again so that used by aarch64 CPU backend code.
 RUN CC=gcc-11 CXX=g++-11 CMAKE_BUILD_TYPE=Release \
-    CMAKE_ARGS="-DGGML_LLAMAFILE=OFF -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}'" \
+    CMAKE_ARGS="-DGGML_LLAMAFILE=OFF \
+    -DCMAKE_C_FLAGS='${compiler_flags}' -DCMAKE_CXX_FLAGS='${compiler_flags}' \
+    -DGGML_BLAS=OFF -DGGML_NATIVE=OFF -DGGML_CPU_ARM_ARCH=${march} \
+    -DGGML_CPU_AARCH64=ON -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_VERBOSE_MAKEFILE:BOOL=TRUE" \
     python3.9 -m pip install -v -e .[server] 2>&1 | tee buildlog.txt
 
 # TODO: Export buildlog.txt in `make deploy.docker` step for review after
@@ -43,4 +48,6 @@ RUN CC=gcc-11 CXX=g++-11 CMAKE_BUILD_TYPE=Release \
 RUN cd /root && pyinstaller -DF /llama_cpp/server/__main__.py \
     --add-data /llama_cpp/lib/libllama.so:llama_cpp/lib \
     --add-data /llama_cpp/lib/libggml.so:llama_cpp/lib \
+    --add-data /llama_cpp/lib/libggml-base.so:llama_cpp/lib \
+    --add-data /llama_cpp/lib/libggml-cpu.so:llama_cpp/lib \
     -n llama-cpp-py-server

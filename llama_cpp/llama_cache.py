@@ -358,12 +358,6 @@ class LlamaStaticDiskCache(BaseLlamaCache):
         model.input_ids = state.input_ids.copy()
         model._seed = state.seed
 
-        if model.scores.shape[0] < state.n_tokens:
-            raise StateReloadError(
-                f"Model context / batch size {model.scores.shape[0]} not large "
-                f"enough for saved state tokens {state.n_tokens}."
-            )
-
         state_size = state.llama_state_size
 
         LlamaStateArrayType = ctypes.c_uint8 * state_size

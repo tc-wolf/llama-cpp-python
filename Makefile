@@ -21,6 +21,15 @@ build.debug:
 		--config-settings=cmake.args="-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_C_FLAGS='-ggdb -O0';-DCMAKE_CXX_FLAGS='-ggdb -O0'" \
 		--editable .
 
+build.debug.extra:
+	python3 -m pip install \
+		--verbose \
+		--config-settings=cmake.verbose=true \
+		--config-settings=logging.level=INFO \
+		--config-settings=install.strip=false  \
+		--config-settings=cmake.args="-DCMAKE_BUILD_TYPE=Debug;-DCMAKE_C_FLAGS='-fsanitize=address -ggdb -O0';-DCMAKE_CXX_FLAGS='-fsanitize=address -ggdb -O0'" \
+		--editable .
+
 build.cuda:
 	CMAKE_ARGS="-DGGML_CUDA=on" python3 -m pip install --verbose -e .
 
@@ -46,7 +55,7 @@ build.rpc:
 	CMAKE_ARGS="-DGGML_RPC=on" python3 -m pip install --verbose -e .
 
 build.sdist:
-	python3 -m build --sdist
+	python3 -m build --sdist --verbose
 
 deploy.pypi:
 	python3 -m twine upload dist/*
@@ -80,36 +89,38 @@ deploy.pyinstaller.mac:
 	@if [ `uname -m` != "arm64" ]; then echo "Must be on aarch64"; exit 1; fi
 	@if [ `uname` != "Darwin" ]; then echo "Must be on MacOS"; exit 1; fi
 	@echo "Building and installing with proper env vars for aarch64-specific ops"
-	CMAKE_ARGS="-DGGML_METAL=off -DGGML_LLAMAFILE=OFF -DGGML_BLAS=OFF -DCMAKE_BUILD_TYPE=Release" python3 -m pip install -v -e .[server,dev]
+
+	# This still builds with metal support (I think b/c GGML_NATIVE=ON). Not an
+	# issue since can still run Q4_0 models w/ repacking support on CPU if `-ngl 0`.
+	CMAKE_ARGS="-DGGML_METAL=OFF -DGGML_LLAMAFILE=OFF -DGGML_BLAS=OFF \
+	-DGGML_NATIVE=ON -DGGML_CPU_AARCH64=ON \
+	-DCMAKE_BUILD_TYPE=Release" python3 -m pip install -v -e .[server,dev]
 	@server_path=$$(python -c 'import llama_cpp.server; print(llama_cpp.server.__file__)' | sed s/init/main/) ; \
 	echo "Server path: $$server_path" ; \
-	libllama_path=$$(python -c 'import llama_cpp.llama_cpp; print(llama_cpp.llama_cpp._load_shared_library("llama")._name)') ; \
-	libggml_path=$$(python -c 'import llama_cpp.llama_cpp; print(llama_cpp.llama_cpp._load_shared_library("ggml")._name)') ; \
-	echo "libllama path: $$libllama_path" ; \
-	echo "libggml path: $$libggml_path" ; \
+	base_path=$$(python -c 'from llama_cpp._ggml import libggml_base_path; print(str(libggml_base_path))') ; \
+	echo "Base path: $$base_path" ; \
 	pyinstaller -DF $$server_path \
-	--add-data $$libllama_path:llama_cpp/lib \
-	--add-data $$libggml_path:llama_cpp/lib \
+	--add-data $$base_path:llama_cpp/lib \
 	-n llama-cpp-py-server
 
 test:
-	python3 -m pytest
+	python3 -m pytest --full-trace -v
 
 docker:
 	docker build -t llama-cpp-python:latest -f docker/simple/Dockerfile .
 
 run-server:
-	uvicorn --factory llama.server:app --host ${HOST} --port ${PORT}
+	python3 -m llama_cpp.server --model ${MODEL}
 
 clean:
 	- cd vendor/llama.cpp && make clean
 	- cd vendor/llama.cpp && rm libllama.so
 	- rm -rf _skbuild
-	- rm llama_cpp/*.so
-	- rm llama_cpp/*.dylib
-	- rm llama_cpp/*.metal
-	- rm llama_cpp/*.dll
-	- rm llama_cpp/*.lib
+	- rm llama_cpp/lib/*.so
+	- rm llama_cpp/lib/*.dylib
+	- rm llama_cpp/lib/*.metal
+	- rm llama_cpp/lib/*.dll
+	- rm llama_cpp/lib/*.lib
 
 .PHONY: \
 	update \

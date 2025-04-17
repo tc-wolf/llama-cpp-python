@@ -188,6 +188,13 @@ class ModelSettings(BaseSettings):
         default=None,
         description="Type of the value cache quantization.",
     )
+
+    # Path to store formatted prompts as NDJSON
+    formatted_prompt_path: Optional[str] = Field(
+        default=None,
+        description="Output path to store formatted prompts as NDJSON.",
+    )
+
     # Misc
     verbose: bool = Field(
         default=True, description="Whether to print debug information."

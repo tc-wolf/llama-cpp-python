@@ -25,6 +25,7 @@ from typing import (
 
 import jinja2
 from jinja2.sandbox import ImmutableSandboxedEnvironment
+import filelock
 
 import numpy as np
 import numpy.typing as npt
@@ -618,9 +619,14 @@ def chat_formatter_to_chat_completion_handler(
         # slow down things at least a little (latency) because I/O is slow.
         if llama.formatted_prompt_path is not None:
             output_path = pathlib.Path(llama.formatted_prompt_path)
-            with output_path.open("a", encoding="utf-8") as f:
-                json.dump({"prompt": result.prompt, "prompt_tokens": prompt}, f)
-                f.write("\n")
+
+            # We ensure that output path ends with .ndjson in pydantic validation.
+            lockfile_path = output_path.with_suffix(".lock")
+            lock = filelock.FileLock(str(lockfile_path))
+            with lock:
+                with output_path.open("a", encoding="utf-8") as f:
+                    json.dump({"prompt": result.prompt, "prompt_tokens": prompt}, f)
+                    f.write("\n")
 
         if result.stop is not None:
             stop = [] if stop is None else [stop] if isinstance(stop, str) else stop

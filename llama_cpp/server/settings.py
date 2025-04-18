@@ -192,6 +192,7 @@ class ModelSettings(BaseSettings):
     # Path to store formatted prompts as NDJSON
     formatted_prompt_path: Optional[str] = Field(
         default=None,
+        pattern=r".*\.ndjson$",
         description="Output path to store formatted prompts as NDJSON.",
     )
 

@@ -92,9 +92,10 @@ deploy.pyinstaller.mac:
 
 	# This still builds with metal support (I think b/c GGML_NATIVE=ON). Not an
 	# issue since can still run Q4_0 models w/ repacking support on CPU if `-ngl 0`.
+	CMAKE_BUILD_TYPE="Release" \
 	CMAKE_ARGS="-DGGML_METAL=OFF -DGGML_LLAMAFILE=OFF -DGGML_BLAS=OFF \
-	-DGGML_NATIVE=ON -DGGML_CPU_AARCH64=ON \
-	-DCMAKE_BUILD_TYPE=Release" python3 -m pip install -v -e .[server,dev]
+	-DGGML_NATIVE=ON -DGGML_CPU_AARCH64=ON" \
+	python3 -m pip install -v -e .[server,dev]
 	@server_path=$$(python -c 'import llama_cpp.server; print(llama_cpp.server.__file__)' | sed s/init/main/) ; \
 	echo "Server path: $$server_path" ; \
 	base_path=$$(python -c 'from llama_cpp._ggml import libggml_base_path; print(str(libggml_base_path))') ; \

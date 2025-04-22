@@ -622,8 +622,7 @@ def chat_formatter_to_chat_completion_handler(
 
             # We ensure that output path ends with .ndjson in pydantic validation.
             lockfile_path = output_path.with_suffix(".lock")
-            lock = filelock.FileLock(str(lockfile_path))
-            with lock:
+            with filelock.FileLock(str(lockfile_path)):
                 with output_path.open("a", encoding="utf-8") as f:
                     json.dump({"prompt": result.prompt, "prompt_tokens": prompt}, f)
                     f.write("\n")

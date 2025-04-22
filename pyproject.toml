@@ -56,9 +56,11 @@ dev = [
     "httpx>=0.24.1",
     "pandas>=2.2.1",
     "tqdm>=4.66.2",
+]
+pyinstaller = [
     "pyinstaller>=6.11.1",
 ]
-all = ["llama_cpp_python[server,test,dev]"]
+all = ["llama_cpp_python[server,test,dev,pyinstaller]"]
 
 [tool.scikit-build]
 wheel.packages = ["llama_cpp"]

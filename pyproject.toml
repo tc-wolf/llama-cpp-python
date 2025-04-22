@@ -15,11 +15,11 @@ dependencies = [
     "diskcache>=5.6.1",
     "jinja2>=2.11.3",
     "PyTrie>=0.4.0",
+    "filelock>=3.18.0",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -56,9 +56,11 @@ dev = [
     "httpx>=0.24.1",
     "pandas>=2.2.1",
     "tqdm>=4.66.2",
+]
+pyinstaller = [
     "pyinstaller>=6.11.1",
 ]
-all = ["llama_cpp_python[server,test,dev]"]
+all = ["llama_cpp_python[server,test,dev,pyinstaller]"]
 
 [tool.scikit-build]
 wheel.packages = ["llama_cpp"]

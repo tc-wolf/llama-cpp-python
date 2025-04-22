@@ -223,6 +223,9 @@ class LlamaProxy:
         import functools
 
         kwargs = {}
+        # Move this here so that works w/ llama_cpp.Llama.from_pretrained as
+        # well as 'normal' constructor.
+        kwargs["formatted_prompt_path"] = settings.formatted_prompt_path
 
         if settings.hf_model_repo_id is not None:
             create_fn = functools.partial(

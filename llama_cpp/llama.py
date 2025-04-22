@@ -546,6 +546,12 @@ class Llama:
 
         self._sampler = None
 
+        # Created formatted prompt path, used for storing formatted prompts as NDJSON
+        if (formatted_prompt_path := kwargs.get("formatted_prompt_path")) is not None:
+            self.formatted_prompt_path = formatted_prompt_path
+        else:
+            self.formatted_prompt_path = None
+
     @property
     def ctx(self) -> llama_cpp.llama_context_p:
         return self._ctx.ctx
@@ -2178,6 +2184,8 @@ class Llama:
             # Misc
             spm_infill=self.spm_infill,
             verbose=self.verbose,
+            # Path provided for prompt serialization, if any
+            formatted_prompt_path=self.formatted_prompt_path,
         )
 
     def __setstate__(self, state):
